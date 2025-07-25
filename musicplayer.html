@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Visualizer Music Player</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body 
+    {
+      height: 100%;
+      background: black;
+      font-family: sans-serif;
+      overflow: hidden;
+      color: white;
+    }
+    .rotating-bg {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      width: 100vw;
+      height: 100vh;
+      background: url('https://media.istockphoto.com/id/1318740898/video/animated-colorful-equalizer.mp4') no-repeat center center/cover;
+      transform: translate(-50%, -50%);
+      animation: rotateBG 20s linear infinite;
+      opacity: 0.1;
+      z-index: 0;
+    }
+    @keyframes rotateBG {
+      from { transform: translate(-50%, -50%) rotate(0deg); }
+      to { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+    .container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      position: relative;
+      z-index: 1;
+    }
+    .player {
+      backdrop-filter: blur(10px);
+      background-color: rgba(0, 0, 0, 0.6);
+      width: 90%;
+      max-width: 800px;
+      padding: 30px;
+      border-radius: 20px;
+      box-shadow: 0 0 25px black;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      z-index: 2;
+    }
+    canvas#visualizer {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      pointer-events: none;
+    }
+    canvas#spectrum {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 250px;
+      height: 250px;
+      pointer-events: none;
+      z-index: 3;
+    }
+    .details {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+    .track-art {
+      position: relative;
+      height: 250px;
+      width: 250px;
+      background-image: url("https://images.pexels.com/photos/262034/pexels-photo-262034.jpeg");
+      background-size: cover;
+      background-position: center;
+      border-radius: 50%;
+      animation: rotateAlbum 10s linear infinite;
+      box-shadow: 0 0 20px white;
+      margin: 20px auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    @keyframes rotateAlbum {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .now-playing { font-size: 1.2rem; }
+    .track-name { font-size: 2rem; font-weight: bold; }
+    .track-artist { font-size: 1rem; opacity: 0.8; }
+    .buttons {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin: 20px 0;
+    }
+    .playpause-track, .prev-track, .next-track, .rewind-10, .forward-10 {
+      opacity: 0.8;
+      transition: opacity .2s;
+      cursor: pointer;
+    }
+    .playpause-track:hover, .prev-track:hover, .next-track:hover,
+    .rewind-10:hover, .forward-10:hover {
+      opacity: 1.0;
+    }
+    .slider_container {
+      width: 80%;
+      max-width: 500px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .seek_slider, .volume_slider {
+      appearance: none;
+      height: 5px;
+      background: white;
+      opacity: 0.7;
+    }
+    .seek_slider::-webkit-slider-thumb, .volume_slider::-webkit-slider-thumb {
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      background: white;
+      cursor: pointer;
+      border-radius: 50%;
+    }
+    .seek_slider:hover, .volume_slider:hover { opacity: 1.0; }
+    .seek_slider { width: 60%; }
+    .volume_slider { width: 30%; }
+    .current-time, .total-duration { padding: 10px; }
+    i.fa-volume-down, i.fa-volume-up { padding: 10px; }
+    input[type="file"] {
+      margin-bottom: 10px;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="rotating-bg"></div>
+  <canvas id="visualizer"></canvas>
+
+  <div class="container">
+    <div class="player">
+      <input type="file" id="fileUpload" accept="audio/*" webkitdirectory multiple />
+      <div class="details">
+        <div class="now-playing">No track loaded</div>
+        <div class="track-art">
+          <canvas id="spectrum" width="250" height="250"></canvas>
+        </div>
+        <div class="track-name">Track Name</div>
+        <div class="track-artist">Visualizer</div>
+      </div>
+
+      <!-- ⏪ ⏩ Buttons -->
+      <div class="buttons">
+        <div class="prev-track" onclick="prevTrack()">
+          <i class="fa fa-step-backward fa-2x" title="Previous Track"></i>
+        </div>
+        <div class="rewind-10" onclick="rewind10()">
+          <i class="fa fa-undo fa-2x" title="Back 10s"></i>
+        </div>
+        <div class="playpause-track" onclick="playpauseTrack()">
+          <i class="fa fa-play-circle fa-5x" title="Play/Pause"></i>
+        </div>
+        <div class="forward-10" onclick="forward10()">
+          <i class="fa fa-redo fa-2x" title="Forward 10s"></i>
+        </div>
+        <div class="next-track" onclick="nextTrack()">
+          <i class="fa fa-step-forward fa-2x" title="Next Track"></i>
+        </div>
+      </div>
+
+      <div class="slider_container">
+        <div class="current-time">00:00</div>
+        <input type="range" min="1" max="100" value="0" class="seek_slider" onchange="seekTo()">
+        <div class="total-duration">00:00</div>
+      </div>
+      <div class="slider_container">
+        <i class="fa fa-volume-down"></i>
+        <input type="range" min="1" max="100" value="99" class="volume_slider" onchange="setVolume()">
+        <i class="fa fa-volume-up"></i>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("visualizer");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const spectrumCanvas = document.getElementById("spectrum");
+    const spectrumCtx = spectrumCanvas.getContext("2d");
+
+    let now_playing = document.querySelector(".now-playing");
+    let track_name = document.querySelector(".track-name");
+    let playpause_btn = document.querySelector(".playpause-track");
+    let seek_slider = document.querySelector(".seek_slider");
+    let volume_slider = document.querySelector(".volume_slider");
+    let curr_time = document.querySelector(".current-time");
+    let total_duration = document.querySelector(".total-duration");
+
+    let isPlaying = false;
+    let isRepeating = false;
+    let updateTimer;
+    let curr_track = new Audio();
+
+    let context, analyser, source, dataArray;
+    let playlist = [];
+    let currentIndex = 0;
+
+    document.getElementById("fileUpload").addEventListener("change", function(event) {
+      const files = Array.from(event.target.files);
+      playlist = files.filter(file => file.type.startsWith("audio/"));
+      if (playlist.length > 0) {
+        currentIndex = 0;
+        loadTrack(currentIndex);
+      } else {
+        alert("No audio files found.");
+      }
+    });
+
+    function loadTrack(index) {
+      clearInterval(updateTimer);
+      resetValues();
+      curr_track.pause();
+
+      const file = playlist[index];
+      if (!file) return;
+
+      curr_track.src = URL.createObjectURL(file);
+      track_name.textContent = file.name;
+      now_playing.textContent = `Playing ${index + 1} of ${playlist.length}`;
+      curr_track.load();
+      curr_track.loop = isRepeating;
+      curr_track.addEventListener("ended", () => {
+        if (!isRepeating) nextTrack();
+      });
+
+      updateTimer = setInterval(seekUpdate, 1000);
+      setupVisualizer(curr_track);
+      if (isPlaying) playTrack();
+    }
+
+    function playpauseTrack() {
+      if (!isPlaying) playTrack();
+      else pauseTrack();
+    }
+
+    function playTrack() {
+      curr_track.play();
+      isPlaying = true;
+      playpause_btn.innerHTML = '<i class="fa fa-pause-circle fa-5x"></i>';
+    }
+
+    function pauseTrack() {
+      curr_track.pause();
+      isPlaying = false;
+      playpause_btn.innerHTML = '<i class="fa fa-play-circle fa-5x"></i>';
+    }
+
+    function nextTrack() {
+      currentIndex = (currentIndex + 1) % playlist.length;
+      loadTrack(currentIndex);
+    }
+
+    function prevTrack() {
+      currentIndex = (currentIndex - 1 + playlist.length) % playlist.length;
+      loadTrack(currentIndex);
+    }
+
+    function rewind10() {
+      curr_track.currentTime = Math.max(0, curr_track.currentTime - 10);
+    }
+
+    function forward10() {
+      curr_track.currentTime = Math.min(curr_track.duration, curr_track.currentTime + 10);
+    }
+
+    function seekTo() {
+      let seekto = curr_track.duration * (seek_slider.value / 100);
+      curr_track.currentTime = seekto;
+    }
+
+    function setVolume() {
+      curr_track.volume = volume_slider.value / 100;
+    }
+
+    function resetValues() {
+      curr_time.textContent = "00:00";
+      total_duration.textContent = "00:00";
+      seek_slider.value = 0;
+    }
+
+    function seekUpdate() {
+      if (!isNaN(curr_track.duration)) {
+        let seekPosition = curr_track.currentTime * (100 / curr_track.duration);
+        seek_slider.value = seekPosition;
+
+        let currentMinutes = Math.floor(curr_track.currentTime / 60);
+        let currentSeconds = Math.floor(curr_track.currentTime % 60);
+        let durationMinutes = Math.floor(curr_track.duration / 60);
+        let durationSeconds = Math.floor(curr_track.duration % 60);
+
+        curr_time.textContent = `${String(currentMinutes).padStart(2, '0')}:${String(currentSeconds).padStart(2, '0')}`;
+        total_duration.textContent = `${String(durationMinutes).padStart(2, '0')}:${String(durationSeconds).padStart(2, '0')}`;
+      }
+    }
+
+    function setupVisualizer(audioElement) {
+      if (!context) {
+        context = new AudioContext();
+        analyser = context.createAnalyser();
+        source = context.createMediaElementSource(audioElement);
+        source.connect(analyser);
+        analyser.connect(context.destination);
+        analyser.fftSize = 128;
+
+        const bufferLength = analyser.frequencyBinCount;
+        dataArray = new Uint8Array(bufferLength);
+
+        function draw() {
+          requestAnimationFrame(draw);
+          analyser.getByteFrequencyData(dataArray);
+
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          const barWidth = (canvas.width / bufferLength) * 1.5;
+          let x = 0;
+          for (let i = 0; i < bufferLength; i++) {
+            const barHeight = dataArray[i];
+            const hue = (i * 360 / bufferLength + Date.now() / 30) % 360;
+            ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+            spectrumCtx.strokeStyle = `hsl(${hue}, 100%, 60%)`;
+
+            ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+            x += barWidth + 1;
+          }
+
+          spectrumCtx.clearRect(0, 0, 250, 250);
+          let cx = 125, cy = 125, radius = 110;
+          for (let i = 0; i < bufferLength; i++) {
+            let angle = (i * 2 * Math.PI) / bufferLength;
+            let barLength = dataArray[i] / 2;
+            let x1 = cx + Math.cos(angle) * radius;
+            let y1 = cy + Math.sin(angle) * radius;
+            let x2 = cx + Math.cos(angle) * (radius + barLength);
+            let y2 = cy + Math.sin(angle) * (radius + barLength);
+            let hue = (i * 360 / bufferLength + Date.now() / 30) % 360;
+            spectrumCtx.strokeStyle = hsl(`${hue}, 100%, 60%`);
+            spectrumCtx.beginPath();
+            spectrumCtx.moveTo(x1, y1);
+            spectrumCtx.lineTo(x2, y2);
+            spectrumCtx.stroke();
+          }
+        }
+        draw();
+      }
+    }
+
+    document.addEventListener("keydown", function(e) {
+      if (e.code === "Space") {
+        e.preventDefault(); playpauseTrack();
+      } else if (e.code === "ArrowRight") nextTrack();
+      else if (e.code === "ArrowLeft") prevTrack();
+      else if (e.code === "ArrowUp") {
+        volume_slider.value = Math.min(100, parseInt(volume_slider.value) + 5);
+        setVolume();
+      } else if (e.code === "ArrowDown") {
+        volume_slider.value = Math.max(0, parseInt(volume_slider.value) - 5);
+        setVolume();
+      } else if (e.key.toLowerCase() === "r") {
+        isRepeating = !isRepeating;
+        curr_track.loop = isRepeating;
+        alert("Repeat " + (isRepeating ? "On 🔁" : "Off ⏹"));
+      } else if (e.key.toLowerCase() === "f") {
+        toggleFullScreen();
+      } else if (e.key === "Escape") {
+        pauseTrack(); document.exitFullscreen();
+      } else if (e.key === "[") {
+        rewind10();
+      } else if (e.key === "]") {
+        forward10();
+      }
+    });
+      
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          alert(`Fullscreen error: ${err.message}`);
+        });
+      } else {
+        document.exitFullscreen();
+      }
+    }
+  </script>
+  </body>
+</html>
